@@ -1,0 +1,57 @@
+# This builds the software and runs tests.  If on master, it also deployes to the Azure status website.
+
+name: CD
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master, develop ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
+
+    - name: Setup .NET Core SDK
+      uses: actions/setup-dotnet@v1.4.0
+      with:
+        # SDK version to use. Example: 2.2.104
+        dotnet-version: 3.1.201
+        
+    - name: Restore NuGet Packages
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build -c Release
+    
+    - name: Run Tests
+      run: dotnet test
+      
+    - name: Publish
+      if: github.ref == 'refs/heads/master'
+      run: dotnet publish Dcidr.Blazor -o publish -c Release
+      
+    # deploy to azure blob storage (static website)
+    - name: Upload to Azure Static Website
+      if: github.ref == 'refs/heads/master'
+      uses: tibor19/static-website-deploy@v1
+      with:
+        # Connection String of the Azure Storage Container
+        connection-string: ${{ secrets.azureBlobStorageConnectionString }}
+        # files to upload  
+        folder: 'publish/wwwroot'  
+        # Name of the Blob Container Storage
+        blob-container-name: $web
+        # Enabled static website
+        enabled-static-website: true
+        # If the existing files should be removed before uploading the new files
+        remove-existing-files: true
